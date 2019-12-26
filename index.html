@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Sim</title>
+</head>
+<body style="margin: 0;">
+	
+	<canvas id="canvas" style="display: block;">change browser</canvas>
+
+	<script>
+
+		setInterval(loop, 1000/60); // 60 FPS
+
+		var
+			canv				= document.getElementById('canvas'),
+			ctx					= canv.getContext('2d'),
+			N					= 10,
+			A					= [],
+			r,
+			bool				= [[],[],[], [],[],[], [],[],[]], // при N > 10 необходимо расширить
+			distance,
+			blData				= [[],[],[],[],[],[],[]]; // порядок:  x,y,r,m,vx,xy;
+
+		blData[2][0]		= 50; 							// r
+		blData[0][0]		= window.innerWidth * 0.5;		// x
+		blData[1][0]		= window.innerHeight * 0.5;		// y
+		blData[3][0]		= Math.PI * blData[2][0] * blData[2][0];	// m
+		blData[4][0]		= 2;							// vx
+		blData[5][0]		= 3;							// vy
+
+		canv.width	= window.innerWidth;
+		canv.height = window.innerHeight;
+
+		// random
+		function getRandomIntInclusive(min, max)
+		{
+			min = Math.ceil(min);
+			max = Math.floor(max);
+			return Math.floor(Math.random() * (max - min + 1)) + min;
+		}
+
+		function getRandomArbitrary(min, max) 
+		{
+			return Math.random() * (max - min) + min;
+		}
+
+		//random spawn
+		for( i = 1; i < N; i++ )
+		{
+			blData[2][i] = getRandomIntInclusive(30, 60); // r
+			blData[0][i] = getRandomIntInclusive(2 + blData[2][i], window.innerWidth - 2 - blData[2][i]); // x
+			blData[1][i] = getRandomIntInclusive(2 + blData[2][i], window.innerHeight - 2 - blData[2][i]); // y
+			blData[3][i] = Math.PI * blData[2][i] * blData[2][i]; // m
+			blData[4][i] = getRandomArbitrary(-4, 4); // vx
+			blData[5][i] = getRandomArbitrary(-4, 4); // vy
+		}
+
+		// bool problem solution
+		for( i = 0; i < N-1; i++ )
+		{
+			for( j = i + 1; j < N; j++ ){
+				bool[i][j] = false;
+			}
+		}
+
+		// main loop
+		function loop()
+		{
+			ctx.beginPath();
+			ctx.fillStyle = '#3b3b3b';
+			ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+			ctx.fill();
+
+			for( i = 0; i < N; i++ )
+			{
+				ctx.beginPath();
+
+				if( blData[1][i] + blData[2][i] > window.innerHeight )
+					blData[5][i] *= -1;
+			
+				if( blData[0][i] + blData[2][i] > window.innerWidth )
+					blData[4][i] *= -1;
+
+				if( blData[1][i] - blData[2][i] < 0 )
+					blData[5][i] *= -1;
+
+				if( blData[0][i] - blData[2][i] < 0 )
+					blData[4][i] *= -1;
+
+				blData[0][i] += blData[4][i];
+				blData[1][i] += blData[5][i];
+
+				if( i == 0){
+					ctx.fillStyle = 'magenta';
+					ctx.arc(blData[0][i], blData[1][i], blData[2][i], 0, Math.PI * 2);
+					ctx.fill();
+				}
+
+				else test();
+			}
+
+			for( i = 0; i < N - 1; i++ )
+			{
+				for( j = i + 1; j < N; j++ )
+				{
+					distance = Math.sqrt(Math.pow(blData[0][j] - blData[0][i], 2) + Math.pow(blData[1][j] - blData[1][i], 2));
+			
+					if( distance  > blData[2][i] + blData[2][j] )
+					{
+						bool[i][j] = true;
+					}
+
+					if( (distance < blData[2][i] + blData[2][j]) && (bool[i][j] == true) )
+					{
+
+						A[0] = Math.cos(Math.atan2(Math.abs(blData[1][j] - blData[1][i]), Math.abs(blData[0][j] - blData[0][i]))); // cos(φ)
+						A[1] = Math.sin(Math.atan2(Math.abs(blData[1][j] - blData[1][i]), Math.abs(blData[0][j] - blData[0][i]))); // sin(φ)
+
+						if( blData[0][j] - blData[0][i] >= 0 && blData[1][j] - blData[1][i] >= 0 || 
+							blData[0][j] - blData[0][i] <= 0 && blData[1][j] - blData[1][i] <= 0 )
+						{ 
+							A[2] = blData[4][i] * A[0] + blData[5][i] * A[1]; // v1z
+							A[3] = -blData[4][i] * A[1] + blData[5][i] * A[0]; // v1w
+							A[4] = blData[4][j] * A[0] + blData[5][j] * A[1]; // v2z
+							A[5] = -blData[4][j] * A[1] + blData[5][j] * A[0]; // v2w
+							// учет массы при ударе
+							A[2] = A[2] * (blData[3][i]/blData[3][j]);
+							A[4] = A[4] * (blData[3][j]/blData[3][i]);
+
+							A[6] = A[4] * A[0] - A[3] * A[1]; // v'1x
+							A[7] = A[4] * A[1] + A[3] * A[0]; // v'1y
+							A[8] = A[2] * A[0] - A[5] * A[1]; // v'2x
+							A[9] = A[2] * A[1] + A[5] * A[0]; // v'2y
+						}
+
+						if( (blData[0][j] - blData[0][i] > 0 && blData[1][j] - blData[1][i] < 0) ||
+							(blData[0][j] - blData[0][i] < 0 && blData[1][j] - blData[1][i] > 0) )
+						{
+							A[2] = blData[4][i] * A[0] - blData[5][i] * A[1]; // v1z
+							A[3] = blData[4][i] * A[1] + blData[5][i] * A[0]; // v1w
+							A[4] = blData[4][j] * A[0] - blData[5][j] * A[1]; // v2z
+							A[5] = blData[4][j] * A[1] + blData[5][j] * A[0]; // v2w
+							// учет массы при ударе
+							A[2] = A[2] * (blData[3][i]/blData[3][j]);
+							A[4] = A[4] * (blData[3][j]/blData[3][i]);
+
+							A[6] = A[4] * A[0] + A[3] * A[1]; // v'1x
+							A[7] = -A[4] * A[1] + A[3] * A[0]; // v'1y
+							A[8] = A[2] * A[0] + A[5] * A[1]; // v'2x
+							A[9] = -A[2] * A[1] + A[5] * A[0]; // v'2y
+						}
+
+						// временно
+						blData[4][i] = A[6];
+						blData[5][i] = A[7];
+						blData[4][j] = A[8];
+						blData[5][j] = A[9];
+						A[10] = Math.sqrt(blData[4][i] ** 2 + blData[5][i] ** 2); // абсолютная скорость шара 1 до удара
+						A[11] = Math.sqrt(blData[4][j] ** 2 + blData[5][j] ** 2); // абсолютная скорость шара 2 до удара
+						A[12] = Math.sqrt(A[6] ** 2 + A[7] ** 2); // абсолютная скорость шара 1 после удара
+						A[13] = Math.sqrt(A[8] ** 2 + A[9] ** 2); // абсолютная скорость шара 2 после удара
+						console.log(A[10] ** 2 + A[11] ** 2 - A[12] ** 2 - A[13] ** 2); //  закон сохранения энергии, должно быть всегда ноль +-eps
+						bool[i][j] = false;
+					}
+				}	
+			}
+		}
+
+		function rndmtest()
+			{
+				let arr = [0,1,2,3,4,5,6,7,8,9,'a','b','c','d','e','f'];
+				let clr = 	String(arr[getRandomIntInclusive(0, 15)]) +
+							String(arr[getRandomIntInclusive(0, 15)]) +
+							String(arr[getRandomIntInclusive(0, 15)]) +
+							String(arr[getRandomIntInclusive(0, 15)]) +
+							String(arr[getRandomIntInclusive(0, 15)]) + 
+							String(arr[getRandomIntInclusive(0, 15)]);
+				//console.log(clr);
+				//console.log(typeof clr);
+				return clr;
+			}
+		rndmtest();
+
+		function test()
+		{
+			ctx.fillStyle = '#' + rndmtest();
+			ctx.fillStyle = '#02cfb1';
+			ctx.arc(blData[0][i], blData[1][i], blData[2][i], 0, Math.PI * 2);
+			ctx.fill();
+		}
+	</script>
+</body>
+</html>
